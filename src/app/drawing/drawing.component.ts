@@ -76,35 +76,42 @@ export class DrawingComponent implements AfterViewInit, OnDestroy {
 
   onColorPickerChange() {
     // This method is called when the color picker value changes
-    // You can add any additional logic here if needed
   }
 
   onMouseDown(event: MouseEvent) {
-    if (!this.ctx) {
-      this.initializeCanvas();
-    }
-    this.isDrawing = true;
-    this.currentPath = [];
-    this.capturePoint(event);
+    this.startDrawing(event.clientX, event.clientY);
   }
 
   onMouseMove(event: MouseEvent) {
     if (this.isDrawing) {
-      this.capturePoint(event);
+      this.capturePoint(event.clientX, event.clientY);
       this.redrawCanvas();
     }
   }
 
   onMouseUp() {
-    if (this.isDrawing) {
-      this.isDrawing = false;
-      if (this.currentPath.length > 1) {
-        this.actions.push({ path: [...this.currentPath], color: this.currentColor });
-        this.redoActions = [];
-      }
-      this.currentPath = [];
+    this.stopDrawing();
+  }
+
+  onTouchStart(event: TouchEvent) {
+    if (event.touches.length === 1) {
+      const touch = event.touches[0];
+      this.startDrawing(touch.clientX, touch.clientY);
     }
   }
+
+  onTouchMove(event: TouchEvent) {
+    if (this.isDrawing && event.touches.length === 1) {
+      const touch = event.touches[0];
+      this.capturePoint(touch.clientX, touch.clientY);
+      this.redrawCanvas();
+    }
+  }
+
+  onTouchEnd() {
+    this.stopDrawing();
+  }
+
   @HostListener('document:keydown', ['$event'])
   handleKeyboardEvent(event: KeyboardEvent) {
     if (event.ctrlKey && event.key === 'z') {
@@ -114,11 +121,31 @@ export class DrawingComponent implements AfterViewInit, OnDestroy {
     }
   }
 
-  private capturePoint(event: MouseEvent) {
+  private startDrawing(x: number, y: number) {
+    if (!this.ctx) {
+      this.initializeCanvas();
+    }
+    this.isDrawing = true;
+    this.currentPath = [];
+    this.capturePoint(x, y);
+  }
+
+  private stopDrawing() {
+    if (this.isDrawing) {
+      this.isDrawing = false;
+      if (this.currentPath.length > 1) {
+        this.actions.push({ path: [...this.currentPath], color: this.currentColor });
+        this.redoActions = [];
+      }
+      this.currentPath = [];
+    }
+  }
+
+  private capturePoint(clientX: number, clientY: number) {
     if (!this.canvasRef) return;
     const rect = this.canvasRef.nativeElement.getBoundingClientRect();
-    const x = (event.clientX - rect.left) / rect.width;
-    const y = (event.clientY - rect.top) / rect.height;
+    const x = (clientX - rect.left) / rect.width;
+    const y = (clientY - rect.top) / rect.height;
     this.currentPath.push({ x, y });
   }
 
@@ -171,5 +198,4 @@ export class DrawingComponent implements AfterViewInit, OnDestroy {
     this.ctx.lineCap = 'round';
     this.ctx.stroke();
   }
-  
 }

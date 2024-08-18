@@ -4,7 +4,11 @@
         (mousedown)="onMouseDown($event)"
         (mousemove)="onMouseMove($event)"
         (mouseup)="onMouseUp()"
-        (mouseleave)="onMouseUp()">
+        (mouseleave)="onMouseUp()"
+        (touchstart)="onTouchStart($event)"
+        (touchmove)="onTouchMove($event)"
+        (touchend)="onTouchEnd()"
+        (touchcancel)="onTouchEnd()">
     </canvas>
     <div class="flex flex-wrap space-x-2 mb-4">
         <button *ngFor="let color of predefinedColors" 
