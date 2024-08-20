@@ -101,15 +101,21 @@ export class DrawingComponent implements AfterViewInit, OnDestroy {
   }
 
   onMouseDown(event: MouseEvent) {
-    event.preventDefault();
     this.startDrawing(event.clientX, event.clientY);
-  }
+    if (this.isEraser) {
+        this.drawEraserPreview(event.clientX, event.clientY);
+    }
+}
 
   onMouseMove(event: MouseEvent) {
-    event.preventDefault();
     if (this.isDrawing) {
-      this.capturePoint(event.clientX, event.clientY);
-      this.redrawCanvas();
+        this.capturePoint(event.clientX, event.clientY);
+        this.redrawCanvas();
+    }
+    
+    // If using eraser, show the eraser preview
+    if (this.isEraser) {
+        this.drawEraserPreview(event.clientX, event.clientY);
     }
   }
 
@@ -158,20 +164,24 @@ export class DrawingComponent implements AfterViewInit, OnDestroy {
 
   private stopDrawing() {
     if (this.isDrawing) {
-      this.isDrawing = false;
-      if (this.currentPath.length > 1) {
-        const smoothPath = this.createSmoothPath(this.currentPath);
-        this.actions.push({
-          path: smoothPath,
-          color: this.isEraser ? this.backgroundColor : this.currentColor,
-          lineWidth: this.brushSize,
-          isEraser: this.isEraser
-        });
-        this.redoActions = [];
-      }
-      this.currentPath = [];
+        this.isDrawing = false;
+        if (this.currentPath.length > 1) {
+            const smoothPath = this.createSmoothPath(this.currentPath);
+            this.actions.push({
+                path: smoothPath,
+                color: this.isEraser ? this.backgroundColor : this.currentColor,
+                lineWidth: this.brushSize,
+                isEraser: this.isEraser
+            });
+            this.redoActions = [];
+        }
+        this.currentPath = [];
+        
+        // Clear eraser preview after drawing
+        this.redrawCanvas(); // To ensure the canvas is updated
     }
   }
+
 
   private capturePoint(clientX: number, clientY: number) {
     if (!this.canvasRef) return;
@@ -332,4 +342,19 @@ export class DrawingComponent implements AfterViewInit, OnDestroy {
   
     return smoothPath;
   }
+
+  private drawEraserPreview(clientX: number, clientY: number) {
+    if (!this.ctx || !this.canvasRef) return;
+    const rect = this.canvasRef.nativeElement.getBoundingClientRect();
+    const x = (clientX - rect.left);
+    const y = (clientY - rect.top);
+    const size = this.brushSize;
+
+    this.redrawCanvas(); 
+
+    this.ctx.strokeStyle = 'black';
+    this.ctx.lineWidth = 1;
+    this.ctx.strokeRect(x - size / 2, y - size / 2, size, size); 
+}
+
 }
