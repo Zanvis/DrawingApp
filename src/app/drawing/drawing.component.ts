@@ -34,6 +34,7 @@ export class DrawingComponent implements AfterViewInit, OnDestroy {
   backgroundType: 'none' | 'grid' | 'lined' = 'none';
 
   changeBackground(event: Event) {
+    event.preventDefault();
     const selectElement = event.target as HTMLSelectElement;
     const selectedValue = selectElement.value as 'none' | 'grid' | 'lined';
     this.backgroundType = selectedValue;
@@ -100,10 +101,12 @@ export class DrawingComponent implements AfterViewInit, OnDestroy {
   }
 
   onMouseDown(event: MouseEvent) {
+    event.preventDefault();
     this.startDrawing(event.clientX, event.clientY);
   }
 
   onMouseMove(event: MouseEvent) {
+    event.preventDefault();
     if (this.isDrawing) {
       this.capturePoint(event.clientX, event.clientY);
       this.redrawCanvas();
@@ -115,6 +118,7 @@ export class DrawingComponent implements AfterViewInit, OnDestroy {
   }
 
   onTouchStart(event: TouchEvent) {
+    event.preventDefault();
     if (event.touches.length === 1) {
       const touch = event.touches[0];
       this.startDrawing(touch.clientX, touch.clientY);
@@ -122,6 +126,7 @@ export class DrawingComponent implements AfterViewInit, OnDestroy {
   }
 
   onTouchMove(event: TouchEvent) {
+    event.preventDefault();
     if (this.isDrawing && event.touches.length === 1) {
       const touch = event.touches[0];
       this.capturePoint(touch.clientX, touch.clientY);
