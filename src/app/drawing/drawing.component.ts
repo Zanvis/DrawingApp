@@ -31,6 +31,15 @@ export class DrawingComponent implements AfterViewInit, OnDestroy {
   brushSize = 2;
   backgroundColor = '#FFFFFF';
   private isShiftPressed = false;
+  backgroundType: 'none' | 'grid' | 'lined' = 'none';
+
+  changeBackground(event: Event) {
+    const selectElement = event.target as HTMLSelectElement;
+    const selectedValue = selectElement.value as 'none' | 'grid' | 'lined';
+    this.backgroundType = selectedValue;
+    this.redrawCanvas();
+  }
+  
   
   constructor(private ngZone: NgZone) {}
 
@@ -91,12 +100,10 @@ export class DrawingComponent implements AfterViewInit, OnDestroy {
   }
 
   onMouseDown(event: MouseEvent) {
-    event.preventDefault();
     this.startDrawing(event.clientX, event.clientY);
   }
 
   onMouseMove(event: MouseEvent) {
-    event.preventDefault();
     if (this.isDrawing) {
       this.capturePoint(event.clientX, event.clientY);
       this.redrawCanvas();
@@ -108,7 +115,6 @@ export class DrawingComponent implements AfterViewInit, OnDestroy {
   }
 
   onTouchStart(event: TouchEvent) {
-    event.preventDefault();
     if (event.touches.length === 1) {
       const touch = event.touches[0];
       this.startDrawing(touch.clientX, touch.clientY);
@@ -116,7 +122,6 @@ export class DrawingComponent implements AfterViewInit, OnDestroy {
   }
 
   onTouchMove(event: TouchEvent) {
-    event.preventDefault();
     if (this.isDrawing && event.touches.length === 1) {
       const touch = event.touches[0];
       this.capturePoint(touch.clientX, touch.clientY);
@@ -200,8 +205,16 @@ export class DrawingComponent implements AfterViewInit, OnDestroy {
     }
   
     const canvas = this.canvasRef.nativeElement;
-    this.ctx.fillStyle = this.backgroundColor;
-    this.ctx.fillRect(0, 0, canvas.width, canvas.height);
+    this.ctx.clearRect(0, 0, canvas.width, canvas.height); // Clear the canvas
+  
+    if (this.backgroundType === 'grid') {
+      this.drawGrid();
+    } else if (this.backgroundType === 'lined') {
+      this.drawLined();
+    } else {
+      this.ctx.fillStyle = this.backgroundColor;
+      this.ctx.fillRect(0, 0, canvas.width, canvas.height);
+    }
   
     for (const action of this.actions) {
       this.drawPath(action.path, action.color, action.lineWidth, action.isEraser);
@@ -210,6 +223,41 @@ export class DrawingComponent implements AfterViewInit, OnDestroy {
     if (this.isDrawing) {
       const smoothCurrentPath = this.createSmoothPath(this.currentPath);
       this.drawPath(smoothCurrentPath, this.isEraser ? this.backgroundColor : this.currentColor, this.brushSize, this.isEraser);
+    }
+  }
+  
+  private drawGrid() {
+    const canvas = this.canvasRef.nativeElement;
+    const gridSize = 20; // Grid cell size
+    this.ctx.strokeStyle = '#e0e0e0';
+    this.ctx.lineWidth = 0.5;
+  
+    for (let x = 0; x <= canvas.width; x += gridSize) {
+      this.ctx.beginPath();
+      this.ctx.moveTo(x, 0);
+      this.ctx.lineTo(x, canvas.height);
+      this.ctx.stroke();
+    }
+  
+    for (let y = 0; y <= canvas.height; y += gridSize) {
+      this.ctx.beginPath();
+      this.ctx.moveTo(0, y);
+      this.ctx.lineTo(canvas.width, y);
+      this.ctx.stroke();
+    }
+  }
+  
+  private drawLined() {
+    const canvas = this.canvasRef.nativeElement;
+    const lineSpacing = 20; // Line spacing size
+    this.ctx.strokeStyle = '#e0e0e0';
+    this.ctx.lineWidth = 0.5;
+  
+    for (let y = 0; y <= canvas.height; y += lineSpacing) {
+      this.ctx.beginPath();
+      this.ctx.moveTo(0, y);
+      this.ctx.lineTo(canvas.width, y);
+      this.ctx.stroke();
     }
   }
 
