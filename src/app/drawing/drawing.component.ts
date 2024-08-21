@@ -31,8 +31,15 @@ export class DrawingComponent implements AfterViewInit, OnDestroy {
   brushSize = 2;
   backgroundColor = '#FFFFFF';
   private isShiftPressed = false;
+  private lineStartPoint: { x: number; y: number } | null = null;
+  private linePreview: { start: { x: number; y: number }, end: { x: number; y: number } } | null = null;
   backgroundType: 'none' | 'grid' | 'lined' = 'none';
-
+  private isLineDrawingMode = false;
+  private readonly HORIZONTAL_SNAP_THRESHOLD = 5; // in degrees
+  private readonly VERTICAL_SNAP_THRESHOLD = 2; // in degrees
+  private readonly HORIZONTAL_SNAP_DISTANCE_THRESHOLD = 0.02; // 2% of the canvas height
+  private readonly VERTICAL_SNAP_DISTANCE_THRESHOLD = 0.02; // 2% of the canvas width
+  
   changeBackground(event: Event) {
     event.preventDefault();
     const selectElement = event.target as HTMLSelectElement;
@@ -40,7 +47,6 @@ export class DrawingComponent implements AfterViewInit, OnDestroy {
     this.backgroundType = selectedValue;
     this.redrawCanvas();
   }
-  
   
   constructor(private ngZone: NgZone) {}
 
@@ -101,26 +107,51 @@ export class DrawingComponent implements AfterViewInit, OnDestroy {
   }
 
   onMouseDown(event: MouseEvent) {
-    this.startDrawing(event.clientX, event.clientY);
-    if (this.isEraser) {
-        this.drawEraserPreview(event.clientX, event.clientY);
-    }
-}
-
-  onMouseMove(event: MouseEvent) {
-    if (this.isDrawing) {
-        this.capturePoint(event.clientX, event.clientY);
-        this.redrawCanvas();
-    }
-    
-    // If using eraser, show the eraser preview
-    if (this.isEraser) {
-        this.drawEraserPreview(event.clientX, event.clientY);
+    if (this.isShiftPressed || this.isLineDrawingMode) {
+      const { x, y } = this.getCanvasCoordinates(event.clientX, event.clientY);
+      this.lineStartPoint = { x, y };
+      this.isLineDrawingMode = true;
+    } else {
+      this.startDrawing(event.clientX, event.clientY);
     }
   }
 
-  onMouseUp() {
-    this.stopDrawing();
+  onMouseMove(event: MouseEvent) {
+    if (this.isDrawing) {
+      this.capturePoint(event.clientX, event.clientY);
+      this.redrawCanvas();
+    } else if (this.isLineDrawingMode && this.lineStartPoint) {
+      const { x, y } = this.getCanvasCoordinates(event.clientX, event.clientY);
+      const snappedEnd = this.getSnappedEndPoint(this.lineStartPoint, { x, y });
+      this.linePreview = {
+        start: this.lineStartPoint,
+        end: snappedEnd
+      };
+      this.redrawCanvas();
+    }
+    
+    if (this.isEraser) {
+      this.drawEraserPreview(event.clientX, event.clientY);
+    }
+  }
+  
+  onMouseUp(event: MouseEvent) {
+    if (this.isLineDrawingMode && this.lineStartPoint) {
+      const { x, y } = this.getCanvasCoordinates(event.clientX, event.clientY);
+      const snappedEnd = this.getSnappedEndPoint(this.lineStartPoint, { x, y });
+      this.actions.push({
+        path: [this.lineStartPoint, snappedEnd],
+        color: this.currentColor,
+        lineWidth: this.brushSize,
+        isEraser: false
+      });
+      this.lineStartPoint = null;
+      this.linePreview = null;
+      this.isLineDrawingMode = false;
+    } else {
+      this.stopDrawing();
+    }
+    this.redrawCanvas();
   }
 
   onTouchStart(event: TouchEvent) {
@@ -145,11 +176,27 @@ export class DrawingComponent implements AfterViewInit, OnDestroy {
   }
 
   @HostListener('document:keydown', ['$event'])
-  handleKeyboardEvent(event: KeyboardEvent) {
+  handleKeyDown(event: KeyboardEvent) {
+    if (event.key === 'Shift') {
+      this.isShiftPressed = true;
+    }
     if (event.ctrlKey && event.key === 'z') {
       this.undo();
     } else if (event.ctrlKey && event.key === 'y') {
       this.redo();
+    }
+  }
+  
+  @HostListener('document:keyup', ['$event'])
+  handleKeyUp(event: KeyboardEvent) {
+    if (event.key === 'Shift') {
+      this.isShiftPressed = false;
+      // Only reset if we're not currently drawing a line
+      if (!this.isLineDrawingMode) {
+        this.lineStartPoint = null;
+        this.linePreview = null;
+        this.redrawCanvas();
+      }
     }
   }
 
@@ -239,12 +286,21 @@ export class DrawingComponent implements AfterViewInit, OnDestroy {
       const smoothCurrentPath = this.createSmoothPath(this.currentPath);
       this.drawPath(smoothCurrentPath, this.isEraser ? this.backgroundColor : this.currentColor, this.brushSize, this.isEraser);
     }
+    if (this.linePreview) {
+      this.drawLine(this.linePreview.start, this.linePreview.end, this.currentColor, this.brushSize);
+    }
   }
-  
+  private getCanvasCoordinates(clientX: number, clientY: number): { x: number; y: number } {
+    const rect = this.canvasRef.nativeElement.getBoundingClientRect();
+    return {
+      x: (clientX - rect.left) / rect.width,
+      y: (clientY - rect.top) / rect.height
+    };
+  }
   private drawGrid() {
     const canvas = this.canvasRef.nativeElement;
     const gridSize = 20; // Grid cell size
-    this.ctx.strokeStyle = '#e0e0e0';
+    this.ctx.strokeStyle = '#9cb7f7';
     this.ctx.lineWidth = 0.5;
   
     for (let x = 0; x <= canvas.width; x += gridSize) {
@@ -265,7 +321,7 @@ export class DrawingComponent implements AfterViewInit, OnDestroy {
   private drawLined() {
     const canvas = this.canvasRef.nativeElement;
     const lineSpacing = 20; // Line spacing size
-    this.ctx.strokeStyle = '#e0e0e0';
+    this.ctx.strokeStyle = '#9cb7f7';
     this.ctx.lineWidth = 0.5;
   
     for (let y = 0; y <= canvas.height; y += lineSpacing) {
@@ -355,6 +411,36 @@ export class DrawingComponent implements AfterViewInit, OnDestroy {
     this.ctx.strokeStyle = 'black';
     this.ctx.lineWidth = 1;
     this.ctx.strokeRect(x - size / 2, y - size / 2, size, size); 
-}
-
+  }
+  private drawLine(start: { x: number; y: number }, end: { x: number; y: number }, color: string, lineWidth: number) {
+    const canvas = this.canvasRef.nativeElement;
+    this.ctx.beginPath();
+    this.ctx.moveTo(start.x * canvas.width, start.y * canvas.height);
+    this.ctx.lineTo(end.x * canvas.width, end.y * canvas.height);
+    this.ctx.strokeStyle = color;
+    this.ctx.lineWidth = lineWidth;
+    this.ctx.lineCap = 'round';
+    this.ctx.stroke();
+  }
+  private getSnappedEndPoint(start: { x: number; y: number }, end: { x: number; y: number }): { x: number; y: number } {
+    const dx = end.x - start.x;
+    const dy = end.y - start.y;
+    const angle = (Math.atan2(dy, dx) * 180 / Math.PI + 360) % 360;
+  
+    // Horizontal snapping
+    if (angle < this.HORIZONTAL_SNAP_THRESHOLD || Math.abs(angle - 180) < this.HORIZONTAL_SNAP_THRESHOLD) {
+      if (Math.abs(dy) < this.HORIZONTAL_SNAP_DISTANCE_THRESHOLD) {
+        return { x: end.x, y: start.y };
+      }
+    }
+    
+    // Vertical snapping
+    if (Math.abs(angle - 90) < this.VERTICAL_SNAP_THRESHOLD || Math.abs(angle - 270) < this.VERTICAL_SNAP_THRESHOLD) {
+      if (Math.abs(dx) < this.VERTICAL_SNAP_DISTANCE_THRESHOLD) {
+        return { x: start.x, y: end.y };
+      }
+    }
+  
+    return end;
+  }
 }
