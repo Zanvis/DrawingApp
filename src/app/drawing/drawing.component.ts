@@ -191,7 +191,6 @@ export class DrawingComponent implements AfterViewInit, OnDestroy {
   handleKeyUp(event: KeyboardEvent) {
     if (event.key === 'Shift') {
       this.isShiftPressed = false;
-      // Only reset if we're not currently drawing a line
       if (!this.isLineDrawingMode) {
         this.lineStartPoint = null;
         this.linePreview = null;
@@ -211,24 +210,21 @@ export class DrawingComponent implements AfterViewInit, OnDestroy {
 
   private stopDrawing() {
     if (this.isDrawing) {
-        this.isDrawing = false;
-        if (this.currentPath.length > 1) {
-            const smoothPath = this.createSmoothPath(this.currentPath);
-            this.actions.push({
-                path: smoothPath,
-                color: this.isEraser ? this.backgroundColor : this.currentColor,
-                lineWidth: this.brushSize,
-                isEraser: this.isEraser
-            });
-            this.redoActions = [];
-        }
-        this.currentPath = [];
-        
-        // Clear eraser preview after drawing
-        this.redrawCanvas(); // To ensure the canvas is updated
+      this.isDrawing = false;
+      if (this.currentPath.length > 1) {
+        const smoothPath = this.createSmoothPath(this.currentPath);
+        this.actions.push({
+          path: smoothPath,
+          color: this.isEraser ? this.backgroundColor : this.currentColor,
+          lineWidth: this.brushSize,
+          isEraser: this.isEraser
+        });
+        this.redoActions = [];
+      }
+      this.currentPath = [];
+      this.redrawCanvas();
     }
   }
-
 
   private capturePoint(clientX: number, clientY: number) {
     if (!this.canvasRef) return;
@@ -257,8 +253,7 @@ export class DrawingComponent implements AfterViewInit, OnDestroy {
   clearCanvas() {
     this.actions = [];
     this.redoActions = [];
-    this.ctx.fillStyle = this.backgroundColor;
-    this.ctx.fillRect(0, 0, this.canvasRef.nativeElement.width, this.canvasRef.nativeElement.height);
+    this.redrawCanvas();
   }
 
   private redrawCanvas() {
@@ -267,8 +262,9 @@ export class DrawingComponent implements AfterViewInit, OnDestroy {
     }
   
     const canvas = this.canvasRef.nativeElement;
-    this.ctx.clearRect(0, 0, canvas.width, canvas.height); // Clear the canvas
+    this.ctx.clearRect(0, 0, canvas.width, canvas.height);
   
+    // Draw background
     if (this.backgroundType === 'grid') {
       this.drawGrid();
     } else if (this.backgroundType === 'lined') {
@@ -278,18 +274,32 @@ export class DrawingComponent implements AfterViewInit, OnDestroy {
       this.ctx.fillRect(0, 0, canvas.width, canvas.height);
     }
   
+    // Create a temporary canvas for drawing actions
+    const tempCanvas = document.createElement('canvas');
+    tempCanvas.width = canvas.width;
+    tempCanvas.height = canvas.height;
+    const tempCtx = tempCanvas.getContext('2d')!;
+  
+    // Draw all actions on the temporary canvas
     for (const action of this.actions) {
-      this.drawPath(action.path, action.color, action.lineWidth, action.isEraser);
+      this.drawPath(tempCtx, action.path, action.color, action.lineWidth, action.isEraser);
     }
   
+    // Draw the current path if we're drawing
     if (this.isDrawing) {
       const smoothCurrentPath = this.createSmoothPath(this.currentPath);
-      this.drawPath(smoothCurrentPath, this.isEraser ? this.backgroundColor : this.currentColor, this.brushSize, this.isEraser);
+      this.drawPath(tempCtx, smoothCurrentPath, this.isEraser ? this.backgroundColor : this.currentColor, this.brushSize, this.isEraser);
     }
+  
+    // Draw the temporary canvas onto the main canvas
+    this.ctx.drawImage(tempCanvas, 0, 0);
+  
+    // Draw the line preview if applicable
     if (this.linePreview) {
-      this.drawLine(this.linePreview.start, this.linePreview.end, this.currentColor, this.brushSize);
+      this.drawLine(this.ctx, this.linePreview.start, this.linePreview.end, this.currentColor, this.brushSize);
     }
   }
+
   private getCanvasCoordinates(clientX: number, clientY: number): { x: number; y: number } {
     const rect = this.canvasRef.nativeElement.getBoundingClientRect();
     return {
@@ -297,9 +307,10 @@ export class DrawingComponent implements AfterViewInit, OnDestroy {
       y: (clientY - rect.top) / rect.height
     };
   }
+
   private drawGrid() {
     const canvas = this.canvasRef.nativeElement;
-    const gridSize = 20; // Grid cell size
+    const gridSize = 20;
     this.ctx.strokeStyle = '#9cb7f7';
     this.ctx.lineWidth = 0.5;
   
@@ -320,7 +331,7 @@ export class DrawingComponent implements AfterViewInit, OnDestroy {
   
   private drawLined() {
     const canvas = this.canvasRef.nativeElement;
-    const lineSpacing = 20; // Line spacing size
+    const lineSpacing = 20;
     this.ctx.strokeStyle = '#9cb7f7';
     this.ctx.lineWidth = 0.5;
   
@@ -332,42 +343,40 @@ export class DrawingComponent implements AfterViewInit, OnDestroy {
     }
   }
 
-  private drawPath(path: { x: number; y: number }[], color: string, lineWidth: number, isEraser: boolean) {
+  private drawPath(ctx: CanvasRenderingContext2D, path: { x: number; y: number }[], color: string, lineWidth: number, isEraser: boolean) {
     if (path.length < 2) return;
   
     const canvas = this.canvasRef.nativeElement;
-    this.ctx.beginPath();
-    this.ctx.moveTo(path[0].x * canvas.width, path[0].y * canvas.height);
+    ctx.beginPath();
+    ctx.moveTo(path[0].x * canvas.width, path[0].y * canvas.height);
   
     for (let i = 1; i < path.length; i++) {
       const xc = (path[i].x + path[i - 1].x) / 2 * canvas.width;
       const yc = (path[i].y + path[i - 1].y) / 2 * canvas.height;
-      this.ctx.quadraticCurveTo(path[i - 1].x * canvas.width, path[i - 1].y * canvas.height, xc, yc);
+      ctx.quadraticCurveTo(path[i - 1].x * canvas.width, path[i - 1].y * canvas.height, xc, yc);
     }
   
-    // For the last point
     const last = path[path.length - 1];
-    this.ctx.lineTo(last.x * canvas.width, last.y * canvas.height);
+    ctx.lineTo(last.x * canvas.width, last.y * canvas.height);
   
-    this.ctx.strokeStyle = color;
-    this.ctx.lineWidth = lineWidth;
-    this.ctx.lineCap = 'round';
-    this.ctx.lineJoin = 'round';
+    ctx.strokeStyle = color;
+    ctx.lineWidth = lineWidth;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
   
     if (isEraser) {
-      this.ctx.globalCompositeOperation = 'destination-out';
+      ctx.globalCompositeOperation = 'destination-out';
     }
-    this.ctx.stroke();
-    this.ctx.globalCompositeOperation = 'source-over';
+    ctx.stroke();
+    ctx.globalCompositeOperation = 'source-over';
   }
+
   private createSmoothPath(points: { x: number; y: number }[]): { x: number; y: number }[] {
     if (points.length < 3) {
       return points;
     }
   
     const smoothPath: { x: number; y: number }[] = [];
-    
-    // Start with the first point
     smoothPath.push(points[0]);
   
     for (let i = 1; i < points.length - 1; i++) {
@@ -375,7 +384,6 @@ export class DrawingComponent implements AfterViewInit, OnDestroy {
       const p1 = points[i];
       const p2 = points[i + 1];
   
-      // Calculate control points
       const ctrl1 = {
         x: p0.x + (p1.x - p0.x) / 2,
         y: p0.y + (p1.y - p0.y) / 2
@@ -385,7 +393,6 @@ export class DrawingComponent implements AfterViewInit, OnDestroy {
         y: p1.y + (p2.y - p1.y) / 2
       };
   
-      // Add points along the curve
       for (let t = 0; t <= 1; t += 0.1) {
         const x = Math.pow(1 - t, 2) * ctrl1.x + 2 * (1 - t) * t * p1.x + Math.pow(t, 2) * ctrl2.x;
         const y = Math.pow(1 - t, 2) * ctrl1.y + 2 * (1 - t) * t * p1.y + Math.pow(t, 2) * ctrl2.y;
@@ -393,7 +400,6 @@ export class DrawingComponent implements AfterViewInit, OnDestroy {
       }
     }
   
-    // End with the last point
     smoothPath.push(points[points.length - 1]);
   
     return smoothPath;
@@ -412,29 +418,29 @@ export class DrawingComponent implements AfterViewInit, OnDestroy {
     this.ctx.lineWidth = 1;
     this.ctx.strokeRect(x - size / 2, y - size / 2, size, size); 
   }
-  private drawLine(start: { x: number; y: number }, end: { x: number; y: number }, color: string, lineWidth: number) {
+
+  private drawLine(ctx: CanvasRenderingContext2D, start: { x: number; y: number }, end: { x: number; y: number }, color: string, lineWidth: number) {
     const canvas = this.canvasRef.nativeElement;
-    this.ctx.beginPath();
-    this.ctx.moveTo(start.x * canvas.width, start.y * canvas.height);
-    this.ctx.lineTo(end.x * canvas.width, end.y * canvas.height);
-    this.ctx.strokeStyle = color;
-    this.ctx.lineWidth = lineWidth;
-    this.ctx.lineCap = 'round';
-    this.ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(start.x * canvas.width, start.y * canvas.height);
+    ctx.lineTo(end.x * canvas.width, end.y * canvas.height);
+    ctx.strokeStyle = color;
+    ctx.lineWidth = lineWidth;
+    ctx.lineCap = 'round';
+    ctx.stroke();
   }
+
   private getSnappedEndPoint(start: { x: number; y: number }, end: { x: number; y: number }): { x: number; y: number } {
     const dx = end.x - start.x;
     const dy = end.y - start.y;
     const angle = (Math.atan2(dy, dx) * 180 / Math.PI + 360) % 360;
   
-    // Horizontal snapping
     if (angle < this.HORIZONTAL_SNAP_THRESHOLD || Math.abs(angle - 180) < this.HORIZONTAL_SNAP_THRESHOLD) {
       if (Math.abs(dy) < this.HORIZONTAL_SNAP_DISTANCE_THRESHOLD) {
         return { x: end.x, y: start.y };
       }
     }
     
-    // Vertical snapping
     if (Math.abs(angle - 90) < this.VERTICAL_SNAP_THRESHOLD || Math.abs(angle - 270) < this.VERTICAL_SNAP_THRESHOLD) {
       if (Math.abs(dx) < this.VERTICAL_SNAP_DISTANCE_THRESHOLD) {
         return { x: start.x, y: end.y };
