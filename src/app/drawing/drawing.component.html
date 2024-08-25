@@ -7,8 +7,8 @@
         (mouseleave)="onMouseUp($event)"
         (touchstart)="onTouchStart($event)"
         (touchmove)="onTouchMove($event)"
-        (touchend)="onTouchEnd()"
-        (touchcancel)="onTouchEnd()">
+        (touchend)="onTouchEnd($event)"
+        (touchcancel)="onTouchEnd($event)">
     </canvas>
     <div class="flex flex-wrap space-x-2 mb-4">
         <button *ngFor="let color of predefinedColors" 
@@ -31,6 +31,6 @@
             <option value="lined">Lined</option>
         </select>
         <!-- <input type="file" (change)="handleImageUpload($event)" accept="image/*" class="px-4 py-2 border border-gray-300 rounded"> -->
-        <input type="file" (change)="onFileSelected($event)" accept="image/*" class="px-4 py-2 border border-gray-300 rounded">
     </div>
+    <input type="file" (change)="onFileSelected($event)" accept="image/*" class="px-4 py-2 mb-4 border border-gray-300 rounded">
 </div>

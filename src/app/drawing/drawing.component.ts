@@ -161,6 +161,7 @@ export class DrawingComponent implements AfterViewInit, OnDestroy {
     reader.readAsDataURL(file);
   }
   onFileSelected(event: Event): void {
+    event.preventDefault();
     const input = event.target as HTMLInputElement;
     if (input.files && input.files.length > 0) {
       this.handleImageUpload(input.files[0]);
@@ -283,23 +284,95 @@ export class DrawingComponent implements AfterViewInit, OnDestroy {
   }
   onTouchStart(event: TouchEvent) {
     event.preventDefault();
-    if (event.touches.length === 1) {
-      const touch = event.touches[0];
-      this.startDrawing(touch.clientX, touch.clientY);
+    const touch = event.touches[0];
+    const { x, y } = this.getCanvasCoordinates(touch.clientX, touch.clientY);
+    const clickedImage = this.getClickedImage(x, y);
+  
+    if (clickedImage) {
+      this.selectedImage = clickedImage;
+      if (this.isResizeHandle(x, y, clickedImage)) {
+        this.isResizingImage = true;
+      } else if (this.isRotateHandle(x, y, clickedImage)) {
+        this.isRotatingImage = true;
+      } else if (this.isDeleteHandle(x, y, clickedImage)) {
+        this.deleteImage(clickedImage);
+      } else {
+        this.isDraggingImage = true;
+        this.dragStartX = x - clickedImage.x / this.canvasRef.nativeElement.width;
+        this.dragStartY = y - clickedImage.y / this.canvasRef.nativeElement.height;
+      }
+    } else {
+      if (!this.isResizingImage && !this.isRotatingImage) {
+        this.selectedImage = null;
+      }
+      if (this.isShiftPressed || this.isLineDrawingMode) {
+        this.lineStartPoint = { x, y };
+        this.isLineDrawingMode = true;
+      } else {
+        this.startDrawing(touch.clientX, touch.clientY);
+      }
     }
+    this.redrawCanvas();
   }
-
+  
   onTouchMove(event: TouchEvent) {
     event.preventDefault();
-    if (this.isDrawing && event.touches.length === 1) {
-      const touch = event.touches[0];
+    const touch = event.touches[0];
+    const { x, y } = this.getCanvasCoordinates(touch.clientX, touch.clientY);
+  
+    if (this.selectedImage) {
+      if (this.isResizingImage) {
+        this.resizeSelectedImage(x, y);
+      } else if (this.isRotatingImage) {
+        this.rotateSelectedImage(x, y);
+      } else if (this.isDraggingImage) {
+        this.selectedImage.x = (x - this.dragStartX) * this.canvasRef.nativeElement.width;
+        this.selectedImage.y = (y - this.dragStartY) * this.canvasRef.nativeElement.height;
+      }
+      this.redrawCanvas();
+    } else if (this.isDrawing) {
       this.capturePoint(touch.clientX, touch.clientY);
       this.redrawCanvas();
+    } else if (this.isLineDrawingMode && this.lineStartPoint) {
+      const snappedEnd = this.getSnappedEndPoint(this.lineStartPoint, { x, y });
+      this.linePreview = {
+        start: this.lineStartPoint,
+        end: snappedEnd
+      };
+      this.redrawCanvas();
+    }
+  
+    if (this.isEraser) {
+      this.drawEraserPreview(touch.clientX, touch.clientY);
     }
   }
-
-  onTouchEnd() {
-    this.stopDrawing();
+  
+  onTouchEnd(event: TouchEvent) {
+    event.preventDefault();
+    this.isDraggingImage = false;
+    this.isResizingImage = false;
+    this.isRotatingImage = false;
+  
+    if (this.isLineDrawingMode && this.lineStartPoint) {
+      const { x, y } = this.getCanvasCoordinates(
+        event.changedTouches[0].clientX,
+        event.changedTouches[0].clientY
+      );
+      const snappedEnd = this.getSnappedEndPoint(this.lineStartPoint, { x, y });
+      this.actions.push({
+        path: [this.lineStartPoint, snappedEnd],
+        color: this.currentColor,
+        lineWidth: this.brushSize,
+        isEraser: false,
+        type: 'path'
+      });
+      this.lineStartPoint = null;
+      this.linePreview = null;
+      this.isLineDrawingMode = false;
+    } else {
+      this.stopDrawing();
+    }
+    this.redrawCanvas();
   }
 
   @HostListener('document:keydown', ['$event'])
