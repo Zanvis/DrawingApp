@@ -58,7 +58,8 @@ export class DrawingComponent implements AfterViewInit, OnDestroy {
   private isRotatingImage = false;
   private dragStartX = 0;
   private dragStartY = 0;
-
+  private initialDistance: number | null = null;
+  private initialImageSize: { width: number; height: number } | null = null;
 
   changeBackground(event: Event) {
     event.preventDefault();
@@ -283,76 +284,100 @@ export class DrawingComponent implements AfterViewInit, OnDestroy {
     return null;
   }
   onTouchStart(event: TouchEvent) {
-    event.preventDefault();
-    const touch = event.touches[0];
-    const { x, y } = this.getCanvasCoordinates(touch.clientX, touch.clientY);
-    const clickedImage = this.getClickedImage(x, y);
-  
-    if (clickedImage) {
-      this.selectedImage = clickedImage;
-      if (this.isResizeHandle(x, y, clickedImage)) {
-        this.isResizingImage = true;
-      } else if (this.isRotateHandle(x, y, clickedImage)) {
-        this.isRotatingImage = true;
-      } else if (this.isDeleteHandle(x, y, clickedImage)) {
-        this.deleteImage(clickedImage);
-      } else {
-        this.isDraggingImage = true;
-        this.dragStartX = x - clickedImage.x / this.canvasRef.nativeElement.width;
-        this.dragStartY = y - clickedImage.y / this.canvasRef.nativeElement.height;
+    if (event.touches.length === 2) {
+      // Pinch start
+      this.initialDistance = this.getDistance(event.touches);
+      if (this.selectedImage) {
+        this.initialImageSize = {
+          width: this.selectedImage.width,
+          height: this.selectedImage.height
+        };
       }
     } else {
-      if (!this.isResizingImage && !this.isRotatingImage) {
-        this.selectedImage = null;
-      }
-      if (this.isShiftPressed || this.isLineDrawingMode) {
-        this.lineStartPoint = { x, y };
-        this.isLineDrawingMode = true;
+      const touch = event.touches[0];
+      const { x, y } = this.getCanvasCoordinates(touch.clientX, touch.clientY);
+      const clickedImage = this.getClickedImage(x, y);
+
+      if (clickedImage) {
+        this.selectedImage = clickedImage;
+        if (this.isResizeHandle(x, y, clickedImage)) {
+          this.isResizingImage = true;
+        } else if (this.isRotateHandle(x, y, clickedImage)) {
+          this.isRotatingImage = true;
+        } else if (this.isDeleteHandle(x, y, clickedImage)) {
+          this.deleteImage(clickedImage);
+        } else {
+          this.isDraggingImage = true;
+          this.dragStartX = x - clickedImage.x / this.canvasRef.nativeElement.width;
+          this.dragStartY = y - clickedImage.y / this.canvasRef.nativeElement.height;
+        }
       } else {
-        this.startDrawing(touch.clientX, touch.clientY);
+        if (!this.isResizingImage && !this.isRotatingImage) {
+          this.selectedImage = null;
+        }
+        if (this.isShiftPressed || this.isLineDrawingMode) {
+          this.lineStartPoint = { x, y };
+          this.isLineDrawingMode = true;
+        } else {
+          this.startDrawing(touch.clientX, touch.clientY);
+        }
       }
     }
     this.redrawCanvas();
   }
-  
+
   onTouchMove(event: TouchEvent) {
-    event.preventDefault();
-    const touch = event.touches[0];
-    const { x, y } = this.getCanvasCoordinates(touch.clientX, touch.clientY);
-  
-    if (this.selectedImage) {
-      if (this.isResizingImage) {
-        this.resizeSelectedImage(x, y);
-      } else if (this.isRotatingImage) {
-        this.rotateSelectedImage(x, y);
-      } else if (this.isDraggingImage) {
-        this.selectedImage.x = (x - this.dragStartX) * this.canvasRef.nativeElement.width;
-        this.selectedImage.y = (y - this.dragStartY) * this.canvasRef.nativeElement.height;
+    if (event.touches.length === 2 && this.selectedImage && this.initialDistance && this.initialImageSize) {
+      // Pinch move
+      const currentDistance = this.getDistance(event.touches);
+      const scale = currentDistance / this.initialDistance;
+      
+      this.selectedImage.width = this.initialImageSize.width * scale;
+      this.selectedImage.height = this.initialImageSize.height * scale;
+
+      this.redrawCanvas();
+    } else {
+      const touch = event.touches[0];
+      const { x, y } = this.getCanvasCoordinates(touch.clientX, touch.clientY);
+
+      if (this.selectedImage) {
+        if (this.isResizingImage) {
+          this.resizeSelectedImage(x, y);
+        } else if (this.isRotatingImage) {
+          this.rotateSelectedImage(x, y);
+        } else if (this.isDraggingImage) {
+          this.selectedImage.x = (x - this.dragStartX) * this.canvasRef.nativeElement.width;
+          this.selectedImage.y = (y - this.dragStartY) * this.canvasRef.nativeElement.height;
+        }
+        this.redrawCanvas();
+      } else if (this.isDrawing) {
+        this.capturePoint(touch.clientX, touch.clientY);
+        this.redrawCanvas();
+      } else if (this.isLineDrawingMode && this.lineStartPoint) {
+        const snappedEnd = this.getSnappedEndPoint(this.lineStartPoint, { x, y });
+        this.linePreview = {
+          start: this.lineStartPoint,
+          end: snappedEnd
+        };
+        this.redrawCanvas();
       }
-      this.redrawCanvas();
-    } else if (this.isDrawing) {
-      this.capturePoint(touch.clientX, touch.clientY);
-      this.redrawCanvas();
-    } else if (this.isLineDrawingMode && this.lineStartPoint) {
-      const snappedEnd = this.getSnappedEndPoint(this.lineStartPoint, { x, y });
-      this.linePreview = {
-        start: this.lineStartPoint,
-        end: snappedEnd
-      };
-      this.redrawCanvas();
-    }
-  
-    if (this.isEraser) {
-      this.drawEraserPreview(touch.clientX, touch.clientY);
+
+      if (this.isEraser) {
+        this.drawEraserPreview(touch.clientX, touch.clientY);
+      }
     }
   }
-  
+
   onTouchEnd(event: TouchEvent) {
-    event.preventDefault();
+    if (event.touches.length < 2) {
+      // Reset pinch state when there are no longer two fingers on the screen
+      this.initialDistance = null;
+      this.initialImageSize = null;
+    }
     this.isDraggingImage = false;
     this.isResizingImage = false;
     this.isRotatingImage = false;
-  
+
     if (this.isLineDrawingMode && this.lineStartPoint) {
       const { x, y } = this.getCanvasCoordinates(
         event.changedTouches[0].clientX,
@@ -375,6 +400,13 @@ export class DrawingComponent implements AfterViewInit, OnDestroy {
     this.redrawCanvas();
   }
 
+  private getDistance(touches: TouchList): number {
+    const [touch1, touch2] = [touches[0], touches[1]];
+    const dx = touch1.clientX - touch2.clientX;
+    const dy = touch1.clientY - touch2.clientY;
+    return Math.sqrt(dx * dx + dy * dy);
+  }
+  
   @HostListener('document:keydown', ['$event'])
   handleKeyDown(event: KeyboardEvent) {
     if (event.key === 'Shift') {
