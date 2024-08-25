@@ -284,6 +284,7 @@ export class DrawingComponent implements AfterViewInit, OnDestroy {
     return null;
   }
   onTouchStart(event: TouchEvent) {
+    event.preventDefault();
     if (event.touches.length === 2) {
       // Pinch start
       this.initialDistance = this.getDistance(event.touches);
@@ -327,6 +328,7 @@ export class DrawingComponent implements AfterViewInit, OnDestroy {
   }
 
   onTouchMove(event: TouchEvent) {
+    event.preventDefault();
     if (event.touches.length === 2 && this.selectedImage && this.initialDistance && this.initialImageSize) {
       // Pinch move
       const currentDistance = this.getDistance(event.touches);
@@ -369,6 +371,7 @@ export class DrawingComponent implements AfterViewInit, OnDestroy {
   }
 
   onTouchEnd(event: TouchEvent) {
+    event.preventDefault();
     if (event.touches.length < 2) {
       // Reset pinch state when there are no longer two fingers on the screen
       this.initialDistance = null;
@@ -406,7 +409,7 @@ export class DrawingComponent implements AfterViewInit, OnDestroy {
     const dy = touch1.clientY - touch2.clientY;
     return Math.sqrt(dx * dx + dy * dy);
   }
-  
+
   @HostListener('document:keydown', ['$event'])
   handleKeyDown(event: KeyboardEvent) {
     if (event.key === 'Shift') {
