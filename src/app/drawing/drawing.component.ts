@@ -21,6 +21,11 @@ interface ImageElement {
   height: number;
   rotation: number;
 }
+interface ContextMenuItem {
+  label: string;
+  action: () => void;
+  shortcut?: string;
+}
 
 @Component({
   selector: 'app-drawing',
@@ -60,7 +65,11 @@ export class DrawingComponent implements AfterViewInit, OnDestroy {
   private dragStartY = 0;
   private initialDistance: number | null = null;
   private initialImageSize: { width: number; height: number } | null = null;
-
+  contextMenuItems: ContextMenuItem[] = [];
+  showContextMenu = false;
+  contextMenuX = 0;
+  contextMenuY = 0;
+  
   changeBackground(event: Event) {
     event.preventDefault();
     const selectElement = event.target as HTMLSelectElement;
@@ -126,6 +135,43 @@ export class DrawingComponent implements AfterViewInit, OnDestroy {
   toggleEraser() {
     this.isEraser = !this.isEraser;
   }
+  @HostListener('contextmenu', ['$event'])
+  onRightClick(event: MouseEvent) {
+    event.preventDefault();
+    const { x, y } = this.getCanvasCoordinates(event.clientX, event.clientY);
+    const clickedImage = this.getClickedImage(x, y);
+  
+    this.contextMenuItems = this.getContextMenuItems(clickedImage);
+    this.contextMenuX = event.clientX;
+    this.contextMenuY = event.clientY;
+    this.showContextMenu = true;
+  }
+  
+  private getContextMenuItems(image: ImageElement | null): ContextMenuItem[] {
+    const items: ContextMenuItem[] = [];
+  
+    if (image) {
+      items.push(
+        { label: 'Duplicate', action: () => this.duplicateImage(), shortcut: 'Ctrl+C' },
+        { label: 'Delete', action: () => this.deleteImage(image), shortcut: 'Delete' },
+        { label: 'Flip Horizontal', action: () => this.flipImage(true) },
+        { label: 'Flip Vertical', action: () => this.flipImage(false) },
+        { label: 'Move Up', action: () => this.moveImageLayer('up'), shortcut: 'Ctrl+↑' },
+        { label: 'Move Down', action: () => this.moveImageLayer('down'), shortcut: 'Ctrl+↓' }
+      );
+    } else {
+      items.push(
+        { label: 'Undo', action: () => this.undo(), shortcut: 'Ctrl+Z' },
+        { label: 'Redo', action: () => this.redo(), shortcut: 'Ctrl+Y' },
+        { label: 'Clear Canvas', action: () => this.clearCanvas() }
+      );
+    }
+  
+    return items;
+  }
+  closeContextMenu() {
+    this.showContextMenu = false;
+  }
 
   @HostListener('document:dragover', ['$event'])
   onDragOver(event: DragEvent) {
@@ -141,6 +187,15 @@ export class DrawingComponent implements AfterViewInit, OnDestroy {
     }
   }
 
+  @HostListener('document:click', ['$event'])
+  onDocumentClick(event: MouseEvent) {
+    if (this.showContextMenu) {
+      const contextMenu = event.target as HTMLElement;
+      if (!contextMenu.closest('.context-menu')) {
+        this.closeContextMenu();
+      }
+    }
+  }
   handleImageUpload(file: File) {
     const reader = new FileReader();
     reader.onload = (e) => {
@@ -155,6 +210,11 @@ export class DrawingComponent implements AfterViewInit, OnDestroy {
           rotation: 0
         };
         this.images.push(imageElement);
+        this.actions.push({
+          type: 'addImage',
+          image: imageElement
+        });
+        this.redoActions = []; // Clear redo actions when a new action is performed
         this.redrawCanvas();
       };
       img.src = e.target?.result as string;
@@ -170,6 +230,8 @@ export class DrawingComponent implements AfterViewInit, OnDestroy {
   }
   
   onMouseDown(event: MouseEvent) {
+    if (event.button !== 0) return;
+    
     const { x, y } = this.getCanvasCoordinates(event.clientX, event.clientY);
     const clickedImage = this.getClickedImage(x, y);
   
@@ -208,6 +270,7 @@ export class DrawingComponent implements AfterViewInit, OnDestroy {
       this.selectedImage = null;
       this.redrawCanvas();
     }
+    this.closeContextMenu();
   }
   onMouseMove(event: MouseEvent) {
     const { x, y } = this.getCanvasCoordinates(event.clientX, event.clientY);
@@ -957,5 +1020,13 @@ export class DrawingComponent implements AfterViewInit, OnDestroy {
       this.redoActions = [];
       this.redrawCanvas();
     }
+    this.closeContextMenu();
+  }
+  exportToPNG() {
+    const dataUrl = this.canvasRef.nativeElement.toDataURL('image/png');
+    const link = document.createElement('a');
+    link.href = dataUrl;
+    link.download = 'drawing.png';
+    link.click();
   }
 }

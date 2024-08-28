@@ -1,6 +1,6 @@
 <div class="flex flex-col items-center">
     <canvas #canvas 
-        class="w-full h-[450px] border border-gray-300 mb-4"
+        class="w-full lg:h-[600px] h-[450px] border border-gray-300 mb-4"
         (mousedown)="onMouseDown($event)"
         (mousemove)="onMouseMove($event)"
         (mouseup)="onMouseUp($event)"
@@ -9,7 +9,19 @@
         (touchmove)="onTouchMove($event)"
         (touchend)="onTouchEnd($event)"
         (touchcancel)="onTouchEnd($event)">
+        (contextmenu)="onRightClick($event)">
     </canvas>
+    <div *ngIf="showContextMenu" 
+        [style.left.px]="contextMenuX" 
+        [style.top.px]="contextMenuY" 
+        class="absolute bg-white border border-gray-300 shadow-md rounded-md">
+        <div *ngFor="let item of contextMenuItems" 
+            (click)="item.action(); closeContextMenu()" 
+            class="px-4 py-2 hover:bg-gray-100 cursor-pointer">
+        {{ item.label }}
+        <span *ngIf="item.shortcut" class="ml-2 text-gray-500 text-sm">{{ item.shortcut }}</span>
+        </div>
+    </div>
     <div class="flex flex-wrap space-x-2 mb-4">
         <button *ngFor="let color of predefinedColors" 
                 [style.backgroundColor]="color"
@@ -31,6 +43,7 @@
             <option value="lined">Lined</option>
         </select>
         <!-- <input type="file" (change)="handleImageUpload($event)" accept="image/*" class="px-4 py-2 border border-gray-300 rounded"> -->
+        <button (click)="exportToPNG()" class="px-4 py-2 bg-blue-500 text-white rounded">Export PNG</button>
     </div>
     <input type="file" (change)="onFileSelected($event)" accept="image/*" class="px-4 py-2 mb-4 border border-gray-300 rounded">
 </div>
