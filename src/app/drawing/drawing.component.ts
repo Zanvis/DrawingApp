@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { AfterViewInit, Component, ElementRef, HostListener, NgZone, OnDestroy, ViewChild } from '@angular/core';
+import { AfterViewInit, Component, ElementRef, HostListener, NgZone, OnDestroy, OnInit, ViewChild } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { debounceTime, fromEvent, Subscription } from 'rxjs';
 
@@ -26,7 +26,10 @@ interface ContextMenuItem {
   action: () => void;
   shortcut?: string;
 }
-
+interface Page {
+  actions: DrawAction[];
+  images: ImageElement[];
+}
 @Component({
   selector: 'app-drawing',
   standalone: true,
@@ -34,7 +37,7 @@ interface ContextMenuItem {
   templateUrl: './drawing.component.html',
   styleUrl: './drawing.component.css'
 })
-export class DrawingComponent implements AfterViewInit, OnDestroy {
+export class DrawingComponent implements AfterViewInit, OnDestroy, OnInit {
   @ViewChild('canvas') canvasRef!: ElementRef<HTMLCanvasElement>;
   private ctx!: CanvasRenderingContext2D;
   private isDrawing = false;
@@ -1028,5 +1031,50 @@ export class DrawingComponent implements AfterViewInit, OnDestroy {
     link.href = dataUrl;
     link.download = 'drawing.png';
     link.click();
+  }
+  pages: Page[] = [];
+  currentPageIndex: number = 0;
+
+  ngOnInit() {
+    // Initialize with one empty page
+    this.addNewPage();
+  }
+
+  addNewPage() {
+    const newPage: Page = {
+      actions: [],
+      images: []
+    };
+    this.pages.push(newPage);
+    this.currentPageIndex = this.pages.length - 1;
+    this.loadPage(this.currentPageIndex);
+  }
+
+  private loadPage(index: number) {
+    if (index < 0 || index >= this.pages.length) return;
+
+    const page = this.pages[index];
+    this.actions = page.actions;
+    this.images = page.images;
+    this.redrawCanvas();
+  }
+
+  switchPage(index: number) {
+    if (index < 0 || index >= this.pages.length) return;
+
+    // Save the current state before switching
+    this.pages[this.currentPageIndex].actions = [...this.actions];
+    this.pages[this.currentPageIndex].images = [...this.images];
+
+    // Load the new page
+    this.loadPage(index);
+    this.currentPageIndex = index;
+  }
+
+  deletePage(index: number) {
+    if (this.pages.length <= 1) return; // Ensure at least one page remains
+    this.pages.splice(index, 1);
+    this.currentPageIndex = Math.max(0, this.currentPageIndex - 1);
+    this.loadPage(this.currentPageIndex);
   }
 }
