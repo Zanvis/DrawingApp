@@ -46,6 +46,7 @@ export class DrawingComponent implements AfterViewInit, OnDestroy, OnInit {
   private currentPath: { x: number; y: number }[] = [];
   currentColor = '#000000';
   predefinedColors = ['#FF0000', '#00FF00', '#0000FF', '#FFFF00', '#FF00FF', '#00FFFF', '#000000', '#FFFFFF'];
+  
   private resizeSubscription: Subscription | undefined;
   isEraser = false;
   brushSize = 2;
@@ -72,7 +73,14 @@ export class DrawingComponent implements AfterViewInit, OnDestroy, OnInit {
   showContextMenu = false;
   contextMenuX = 0;
   contextMenuY = 0;
-  
+  pages: Page[] = [];
+  currentPageIndex: number = 0;
+
+  ngOnInit() {
+    // Initialize with one empty page
+    this.addNewPage();
+  }
+
   changeBackground(event: Event) {
     event.preventDefault();
     const selectElement = event.target as HTMLSelectElement;
@@ -1031,13 +1039,6 @@ export class DrawingComponent implements AfterViewInit, OnDestroy, OnInit {
     link.href = dataUrl;
     link.download = 'drawing.png';
     link.click();
-  }
-  pages: Page[] = [];
-  currentPageIndex: number = 0;
-
-  ngOnInit() {
-    // Initialize with one empty page
-    this.addNewPage();
   }
 
   addNewPage() {
