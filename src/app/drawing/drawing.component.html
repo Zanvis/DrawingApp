@@ -85,6 +85,7 @@
                 class="px-2 py-1 sm:px-3 sm:py-2 bg-blue-500 text-white rounded-lg shadow hover:bg-blue-600 text-sm sm:text-base">Export PNG</button>
         </div>
 </div> -->
+
 <div class="flex flex-col h-[90vh] bg-gray-100">
         <!-- Top Toolbar -->
         <div class="flex justify-between items-center p-2 bg-white shadow-md flex-shrink-0 flex-wrap">
@@ -131,12 +132,17 @@
                         <!-- Brush Size -->
                         <input type="range" [(ngModel)]="brushSize" min="1" max="50" 
                                 class="w-16 sm:w-32 mx-1 sm:mx-2">
-                        
+                        <div>{{brushSize}} px</div>
                         <!-- Clear Canvas Button -->
-                        <button (click)="clearCanvas()" 
+                        <button (click)="clearCanvas()" class="p-2 rounded-lg hover:bg-gray-200 transition-colors">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                </svg>
+                        </button>
+                        <!-- <button (click)="clearCanvas()" 
                                 class="flex items-center space-x-2 p-1 rounded-lg hover:bg-gray-200 transition-colors">
                                 Clear
-                        </button>
+                        </button> -->
                         </div>
                 </div>
 
