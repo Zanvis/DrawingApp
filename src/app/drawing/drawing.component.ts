@@ -1067,6 +1067,8 @@ export class DrawingComponent implements AfterViewInit, OnDestroy, OnInit {
     this.pages[this.currentPageIndex].actions = [...this.actions];
     this.pages[this.currentPageIndex].images = [...this.images];
 
+    this.clearCanvas;
+    
     // Load the new page
     this.loadPage(index);
     this.currentPageIndex = index;
